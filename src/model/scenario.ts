@@ -24,8 +24,12 @@ export function dataToScenario(
             workflowID: wf.workflowID,
             cronSyntax: wf.cronSyntax,
             updatedAt: wf.updatedAt,
-            workflowRunID: workflowRun.workflowRunID,
-            workflowRunStatus: workflowRun.phase,
+            workflowRunID:
+                workflowRun !== undefined
+                    ? workflowRun.workflowRunID
+                    : undefined,
+            workflowRunStatus:
+                workflowRun !== undefined ? workflowRun.phase : undefined,
         };
     });
 }

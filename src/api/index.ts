@@ -1,10 +1,10 @@
 import { gql } from '@apollo/client';
 import { jsonToProject, Project } from '../model/project';
 
-export const getOwnerProjects = async (
+export const getOwnerProject = async (
     baseURL: string,
     token: string
-): Promise<[string, Error]> => {
+): Promise<[Project, Error]> => {
     return fetch(`${baseURL}/auth/get_owner_projects`, {
         method: 'GET',
         headers: {
@@ -15,7 +15,13 @@ export const getOwnerProjects = async (
         .then((response) => response.json())
         .then((data) => {
             if (data.data) {
-                return [data.data[0], null];
+                return [
+                    {
+                        id: data.data[0],
+                        role: 'Owner',
+                    },
+                    null,
+                ];
             }
             return [null, new Error('owner projects not found')];
         })
@@ -26,7 +32,8 @@ export const getOwnerProjects = async (
 
 export const getProjectList = async (
     baseURL: string,
-    token: string
+    token: string,
+    username: string
 ): Promise<[Project[], Error]> => {
     return fetch(`${baseURL}/auth/list_projects`, {
         method: 'GET',
@@ -39,7 +46,7 @@ export const getProjectList = async (
         .then((data) => {
             if (data.data) {
                 const projectList = data.data.map((jsonData) =>
-                    jsonToProject(jsonData)
+                    jsonToProject(jsonData, username)
                 );
                 return [projectList, null];
             }

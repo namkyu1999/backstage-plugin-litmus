@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import {
     GET_WORKFLOW_DETAILS,
-    getOwnerProjects,
+    getOwnerProject,
     getProjectList,
     WORKFLOW_DETAILS,
 } from '../api';
@@ -36,8 +36,15 @@ import timeDifferenceForDate from '../utils/datesModifier';
 import useStyles from './styles';
 import { Project } from '../model/project';
 import { dataToScenario, Scenario } from '../model/scenario';
+import { getUsernameFromJWT } from '../utils/auth';
 
-const OverviewTable = ({ scenarios }: { scenarios: Scenario[] }) => {
+const OverviewTable = ({
+    scenarios,
+    currentProject,
+}: {
+    scenarios: Scenario[];
+    currentProject: Project;
+}) => {
     const configApi = useApi(configApiRef);
     const baseURL = configApi.getOptionalString('litmus.baseURL');
     const getVariant = (variant: string | undefined) => {
@@ -95,15 +102,20 @@ const OverviewTable = ({ scenarios }: { scenarios: Scenario[] }) => {
         },
         {
             title: 'Recent Run',
-            render: (row: any): React.ReactNode => (
-                <Button
-                    href={`${baseURL}/scenarios/${row.workflowRunID}`}
-                    color={getButtonColor(getVariant(row.workflowRunStatus))}
-                    variant="outlined"
-                >
-                    {getVariant(row.workflowRunStatus)}
-                </Button>
-            ),
+            render: (row: any): React.ReactNode =>
+                row.workflowRunID === undefined ? (
+                    <div>Not yet executed</div>
+                ) : (
+                    <Button
+                        href={`${baseURL}/scenarios/${row.workflowRunID}?projectID=${currentProject.id}&projectRole=${currentProject.role}`}
+                        color={getButtonColor(
+                            getVariant(row.workflowRunStatus)
+                        )}
+                        variant="outlined"
+                    >
+                        {getVariant(row.workflowRunStatus)}
+                    </Button>
+                ),
         },
     ];
     return (
@@ -122,13 +134,13 @@ const OverviewTable = ({ scenarios }: { scenarios: Scenario[] }) => {
 };
 
 const LitmusOverview = ({
-    projectID,
+    currentProject,
     projectList,
-    updateProjectID,
+    updateProject,
 }: {
-    projectID: string;
+    currentProject: Project;
     projectList: Project[];
-    updateProjectID: (updatedProjectID: string) => void;
+    updateProject: (updatedProject: Project) => void;
 }) => {
     const classes = useStyles();
 
@@ -137,7 +149,7 @@ const LitmusOverview = ({
         {
             variables: {
                 request: {
-                    projectID,
+                    projectID: currentProject.id,
                     sort: {
                         field: 'TIME',
                         descending: true,
@@ -153,7 +165,7 @@ const LitmusOverview = ({
         {
             variables: {
                 request: {
-                    projectID,
+                    projectID: currentProject.id,
                 },
             },
             fetchPolicy: 'cache-and-network',
@@ -208,10 +220,14 @@ const LitmusOverview = ({
                                 Select Project
                             </InputLabel>
                             <Select
-                                defaultValue={projectID}
+                                defaultValue={currentProject.id}
                                 onChange={(event) =>
-                                    updateProjectID(
-                                        event.target.value as string
+                                    updateProject(
+                                        projectList.find(
+                                            (x) =>
+                                                x.id ===
+                                                (event.target.value as string)
+                                        )
                                     )
                                 }
                                 label="Schedule Type"
@@ -227,7 +243,10 @@ const LitmusOverview = ({
                     </div>
                 }
             >
-                <OverviewTable scenarios={scenarios} />
+                <OverviewTable
+                    scenarios={scenarios}
+                    currentProject={currentProject}
+                />
             </InfoCard>
         );
     }
@@ -244,25 +263,23 @@ export const LitmusOverviewCard = () => {
         `${baseURL}/ws/query`,
         apiToken
     );
-    const [projectID, setProjectID] = useState<string>(null);
+    const [currentProject, setCurrentProject] = useState<Project>(null);
     const [projectList, setProjectList] = useState<Project[]>(null);
-    const updateProjectID = (updatedProjectID: string) => {
-        setProjectID(updatedProjectID);
+    const updateProject = (updatedProject: Project) => {
+        setCurrentProject(updatedProject);
     };
+    const username = getUsernameFromJWT(apiToken);
 
     useEffect(() => {
-        getOwnerProjects(`${baseURL}`, apiToken).then(
-            ([ownerProjectID, err]) => {
-                if (err === null) {
-                    setProjectID(ownerProjectID);
-                    // setProjectRole('Owner');
-                }
+        getOwnerProject(`${baseURL}`, apiToken).then(([ownerProject, err]) => {
+            if (err === null) {
+                setCurrentProject(ownerProject);
             }
-        );
+        });
     }, []);
 
     useEffect(() => {
-        getProjectList(`${baseURL}`, apiToken).then(
+        getProjectList(`${baseURL}`, apiToken, username).then(
             ([currentProjectList, err]) => {
                 if (err === null) {
                     setProjectList(currentProjectList);
@@ -274,15 +291,15 @@ export const LitmusOverviewCard = () => {
     return (
         <ErrorBoundary>
             <ApolloProvider client={client}>
-                {projectID === null || projectList === null ? (
+                {currentProject === null || projectList === null ? (
                     <InfoCard title="Litmus Overview">
                         <LinearProgress />
                     </InfoCard>
                 ) : (
                     <LitmusOverview
-                        projectID={projectID}
+                        currentProject={currentProject}
                         projectList={projectList}
-                        updateProjectID={updateProjectID}
+                        updateProject={updateProject}
                     />
                 )}
             </ApolloProvider>
